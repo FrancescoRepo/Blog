@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq;
 using AngleSharp.Html.Dom;
 using Blazored.Toast.Services;
@@ -30,6 +30,7 @@ public class CreateNewBlogPostTests : BunitContext
         Services.AddScoped(_ => Substitute.For<IInstantJobRegistry>());
         Services.AddScoped<ICacheInvalidator>(_ => cacheService);
         Services.AddScoped(_ => Substitute.For<IToastService>());
+        Services.AddScoped(_ => Substitute.For<IRepository<BlogPost>>());
     }
 
     [Fact]
