@@ -1,0 +1,27 @@
+@using Blazorise
+@using LinkDotNet.Blog.Domain
+
+<ModalDialog @ref="ModalDialog" Title="BlogPost Preview" ModalSizeClass="modal-fullscreen">
+    <BlogPostDetail BlogPost="@BlogPost" IsPreview="true" />
+    <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" @onclick="CloseDialog">Close</button>
+    </div>
+</ModalDialog>
+
+@code {
+    [Parameter]
+    public required BlogPost BlogPost { get; set; }
+
+    private ModalDialog ModalDialog { get; set; } = default!;
+
+    public void Open()
+    {
+        ModalDialog.Open();
+        StateHasChanged();
+    }
+
+    private void CloseDialog()
+    {
+        ModalDialog.Close();
+    }
+}

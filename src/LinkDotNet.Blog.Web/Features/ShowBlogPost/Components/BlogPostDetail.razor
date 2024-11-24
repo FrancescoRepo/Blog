@@ -1,0 +1,131 @@
+@using LinkDotNet.Blog.Domain
+@using LinkDotNet.Blog.Infrastructure.Persistence
+@using LinkDotNet.Blog.Web.Features.SupportMe.Components
+@using Markdig
+@using System.Text
+@inject IRepository<BlogPost> BlogPostRepository
+@inject IOptions<ApplicationConfiguration> AppConfiguration
+@inject NavigationManager NavigationManager
+@inject IOptions<SupportMeConfiguration> SupportConfiguration
+@inject IOptions<ProfileInformation> ProfileInformation
+
+<PageTitle>@BlogPost.Title</PageTitle>
+<OgData Title="@BlogPost.Title"
+        AbsolutePreviewImageUrl="@OgDataImage"
+        Description="@(Markdown.ToPlainText(BlogPost.ShortDescription))"
+        Keywords="@BlogPost.TagsAsString"
+        CanonicalRelativeUrl="@BlogPostCanoncialUrl">
+    <StructuredData Headline="@BlogPost.Title"
+                    PreviewImage="@BlogPost.PreviewImageUrl"
+                    PreviewFallbackImage="@BlogPost.PreviewImageUrlFallback"
+                    PublishedDate="@BlogPost.UpdatedDate"
+                    Author="@ProfileInformation.Value.Name" />
+</OgData>
+
+<div class="d-flex justify-content-center pt-2 blog-outer-box">
+    <div class="blog-container">
+        <div class="blog-inner-content">
+            <header class="text-center">
+                <h1 class="fw-bold">@BlogPost.Title</h1>
+            </header>
+            <div class="text-dark-emphasis d-flex flex-wrap gap-2">
+                <div class="me-2">
+                    <span class="date"></span>
+                    <span class="ms-1">@BlogPost.UpdatedDate.ToShortDateString()</span>
+                </div>
+                <span class="read-time"></span>
+                <span class="me-2">@BlogPost.ReadingTimeInMinutes minute read</span>
+                @if (BlogPost.Tags is not null && BlogPost.Tags.Any())
+                {
+                    <div class="d-flex align-items-center">
+                        <span class="blogpost-tag me-2"></span>
+                        <div class="d-flex flex-wrap gap-2">
+                            @foreach (var tag in BlogPost.Tags)
+                            {
+                                <a class="goto-tag badge bg-primary rounded-pill text-decoration-none" href="/searchByTag/@(Uri.EscapeDataString(tag))">@tag</a>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+
+            @if (!IsPreview)
+            {
+                <div class="pt-2">
+                    <BlogPostAdminActions BlogPostId="@BlogPost.Id"></BlogPostAdminActions>
+                </div>
+            }
+
+            <div class="pt-2">
+                <TableOfContents Content="@BlogPost.Content" CurrentUri="@NavigationManager.Uri"></TableOfContents>
+            </div>
+
+            <div class="blogpost-content">
+                @(EnrichWithShortCodes(BlogPost.Content))
+            </div>
+        </div>
+        @if (!IsPreview)
+        {
+            <div class="d-flex justify-content-between py-2 border-top border-bottom align-items-center">
+                <Like BlogPost="@BlogPost" OnBlogPostLiked="@UpdateLikes"></Like>
+                <ShareBlogPost></ShareBlogPost>
+            </div>
+        }
+
+        @if (SupportConfiguration.Value.ShowUnderBlogPost)
+        {
+            <DonationSection />
+        }
+        @if (AppConfiguration.Value.ShowSimilarPosts)
+        {
+            <SimilarBlogPostSection BlogPost="@BlogPost" />
+        }
+        <CommentSection></CommentSection>
+    </div>
+</div>
+
+@if (AppConfiguration.Value.ShowReadingIndicator)
+{
+    <ReadingIndicator ContainerCssSelector=".blog-inner-content" />
+}
+
+@code {
+    [Parameter]
+    public bool IsPreview { get; set; } = false;
+
+    [Parameter, EditorRequired]
+    public required BlogPost BlogPost { get; set; }
+
+    private string OgDataImage => BlogPost!.PreviewImageUrlFallback ?? BlogPost.PreviewImageUrl;
+    private string BlogPostCanoncialUrl => $"blogPost/{BlogPost?.Id}";
+
+    [Parameter]
+    public IReadOnlyCollection<ShortCode> ShortCodes { get; set; } = [];
+
+    private MarkupString EnrichWithShortCodes(string content)
+    {
+        if (ShortCodes.Count == 0)
+        {
+            return MarkdownConverter.ToMarkupString(content);
+        }
+
+        var sb = new StringBuilder(content);
+        foreach (var shortCode in ShortCodes)
+        {
+            sb.Replace($"[[{shortCode.Name}]]", shortCode.MarkdownContent);
+        }
+
+        return MarkdownConverter.ToMarkupString(sb.ToString());
+    }
+
+    private async Task UpdateLikes(bool hasLiked)
+    {
+        if (!IsPreview)
+        {
+            BlogPost = await BlogPostRepository.GetByIdAsync(BlogPost.Id)
+                   ?? throw new InvalidOperationException("Blog post not found");
+            BlogPost.Likes = hasLiked ? BlogPost.Likes + 1 : BlogPost.Likes - 1;
+            await BlogPostRepository.StoreAsync(BlogPost);
+        }
+    }
+}
